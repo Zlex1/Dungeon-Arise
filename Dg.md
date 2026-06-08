@@ -1,4 +1,4 @@
--- Auto Dungeon Hub v19 - Teleporta Imediato, Depois Espera
+-- Auto Dungeon Hub v20 - Com Novas Dificuldades (Ultra, Chaotic, Nightmare)
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- ============================================
@@ -53,13 +53,20 @@ MainTab:CreateToggle({
     end
 })
 
+-- Dropdown com TODAS as dificuldades
 MainTab:CreateDropdown({
     Name = "Dificuldade",
-    Options = {"Easy", "Normal", "Hard", "Insane" },
+    Options = {"Easy", "Normal", "Hard", "Insane", "Ultra", "Chaotic", "Nightmare"},
     CurrentOption = {Config.Difficulty},
     Callback = function(v)
         Config.Difficulty = v[1]
         SaveConfig()
+        print("[⚔️] Dificuldade alterada para: " .. Config.Difficulty)
+        Rayfield:Notify({
+            Title = "⚔️ Dificuldade",
+            Content = Config.Difficulty,
+            Duration = 2
+        })
     end
 })
 
@@ -72,6 +79,23 @@ MainTab:CreateSlider({
     Callback = function(v)
         Config.WaitTime = v
         SaveConfig()
+    end
+})
+
+-- Botão para teste rápido
+MainTab:CreateButton({
+    Name = "🚀 Testar CREATE + START agora",
+    Callback = function()
+        TeleportToBoss()
+        task.wait(1)
+        SendCreate()
+        task.wait(1)
+        SendStart()
+        Rayfield:Notify({
+            Title = "Teste Executado",
+            Content = Config.Difficulty,
+            Duration = 2
+        })
     end
 })
 
@@ -122,7 +146,7 @@ function SendCreate()
     end)
 end
 
--- Enviar START
+-- Enviar START (com a dificuldade selecionada)
 function SendStart()
     pcall(function()
         local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
@@ -154,16 +178,28 @@ function ExecuteCreateAndStart()
     SendCreate()
     task.wait(1)
     
-    StatusLabel:Set("Status: Enviando START...")
+    StatusLabel:Set("Status: Enviando START (" .. Config.Difficulty .. ")...")
     SendStart()
     
+    -- Notificação com a dificuldade
+    local color = ""
+    if Config.Difficulty == "Ultra" then
+        color = "💜"
+    elseif Config.Difficulty == "Chaotic" then
+        color = "🌪️"
+    elseif Config.Difficulty == "Nightmare" then
+        color = "🌙"
+    else
+        color = "⚔️"
+    end
+    
     Rayfield:Notify({
-        Title = "✅ Dungeon Iniciada!",
+        Title = color .. " Dungeon Iniciada!",
         Content = Config.Difficulty,
         Duration = 2
     })
     
-    print("[▶] ===== DUNGEON INICIADA ===== ")
+    print("[▶] ===== DUNGEON " .. string.upper(Config.Difficulty) .. " INICIADA ===== ")
     StatusLabel:Set("Status: Dungeon em andamento...")
 end
 
@@ -175,12 +211,13 @@ local loopActive = false
 
 task.spawn(function()
     print("[🎮] Script carregado!")
+    print("[⚔️] Dificuldades disponíveis: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
     
     while true do
         if Config.AutoStart then
             if not loopActive then
                 loopActive = true
-                print("[🔁] Loop ativado!")
+                print("[🔁] Loop ativado! Dificuldade: " .. Config.Difficulty)
                 
                 while Config.AutoStart do
                     -- PASSO 1: TELEPORTAR IMEDIATAMENTE
@@ -190,13 +227,13 @@ task.spawn(function()
                     
                     Rayfield:Notify({
                         Title = "📍 Teleportado!",
-                        Content = "Aguardando " .. Config.WaitTime .. " segundos...",
+                        Content = "Aguardando " .. Config.WaitTime .. " segundos para " .. Config.Difficulty,
                         Duration = 3
                     })
                     
                     -- PASSO 2: ESPERAR O TEMPO
-                    print("[⏳] Aguardando " .. Config.WaitTime .. " segundos para enviar CREATE + START...")
-                    StatusLabel:Set("Status: Aguardando " .. Config.WaitTime .. "s para iniciar dungeon")
+                    print("[⏳] Aguardando " .. Config.WaitTime .. " segundos para enviar CREATE + START (" .. Config.Difficulty .. ")...")
+                    StatusLabel:Set("Status: Aguardando " .. Config.WaitTime .. "s para iniciar " .. Config.Difficulty)
                     
                     local startTime = tick()
                     local elapsed = 0
@@ -208,8 +245,8 @@ task.spawn(function()
                         TimerLabel:Set(string.format("Timer: %02d:%02d", minutos, segundos))
                         
                         if math.floor(remaining) % 30 == 0 and remaining > 0 then
-                            print("[⏳] Enviando comandos em " .. math.floor(remaining) .. " segundos")
-                            StatusLabel:Set(string.format("Status: Enviando em %ds", math.floor(remaining)))
+                            print("[⏳] Enviando comandos em " .. math.floor(remaining) .. " segundos (" .. Config.Difficulty .. ")")
+                            StatusLabel:Set(string.format("Status: Enviando %s em %ds", Config.Difficulty, math.floor(remaining)))
                         end
                         
                         task.wait(1)
@@ -218,7 +255,7 @@ task.spawn(function()
                     
                     -- PASSO 3: SÓ DEPOIS DE ESPERAR, ENVIAR CREATE + START
                     if Config.AutoStart then
-                        print("[▶] Tempo esgotado! Enviando CREATE + START...")
+                        print("[▶] Tempo esgotado! Enviando CREATE + START (" .. Config.Difficulty .. ")...")
                         ExecuteCreateAndStart()
                         
                         -- PASSO 4: Pequena pausa antes de recomeçar o ciclo
@@ -249,9 +286,17 @@ end)
 -- Notificação inicial
 Rayfield:Notify({
     Title = "✅ Script Carregado!",
-    Content = "Ao ativar: Teleporta IMEDIATO → Espera " .. Config.WaitTime .. "s → Inicia dungeon",
+    Content = "Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare",
     Duration = 5
 })
 
-print("[✅] Script v19 carregado!")
-print("[✅] Fluxo: Teleporta AGORA → Espera " .. Config.WaitTime .. "s → CREATE + START → Espera 5s → Repete")
+print("[✅] Script v20 carregado!")
+print("[⚔️] Dificuldades disponíveis:")
+print("   - Easy")
+print("   - Normal")
+print("   - Hard")
+print("   - Insane")
+print("   - Ultra 💜")
+print("   - Chaotic 🌪️")
+print("   - Nightmare 🌙")
+print("[✅] Fluxo: Teleporta AGORA → Espera " .. Config.WaitTime .. "s → CREATE + START → Repete")
