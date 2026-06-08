@@ -55,7 +55,7 @@ MainTab:CreateToggle({
 
 MainTab:CreateDropdown({
     Name = "Dificuldade",
-    Options = {"Easy", "Normal", "Hard", "Insane", "Ultra"},
+    Options = {"Easy", "Normal", "Hard", "Insane" },
     CurrentOption = {Config.Difficulty},
     Callback = function(v)
         Config.Difficulty = v[1]
