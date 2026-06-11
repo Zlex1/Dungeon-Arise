@@ -1,4 +1,4 @@
--- Auto Dungeon Hub v22 - Com Auto Rebirth + Auto Status + Novas Dificuldades
+-- Auto Dungeon Hub v24 - Limite de Pontos Aumentado para 3000
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- ============================================
@@ -13,8 +13,9 @@ local Config = {
     WaitTime = 120,  -- Tempo de espera DEPOIS do teleporte
     AutoRebirth = false,
     RebirthInterval = 300,  -- Tempo entre rebirths (segundos)
-    AutoStatus = false,  -- NOVO: Auto Upgrade de Status
-    StatusPoints = 250   -- NOVO: Quantos pontos gastar por vez
+    AutoStatus = false,
+    StatusInterval = 10,  -- Tempo entre upgrades (segundos)
+    StatusPoints = 250   -- Quantos pontos gastar por vez
 }
 
 local function SaveConfig()
@@ -44,7 +45,7 @@ local Window = Rayfield:CreateWindow({
 
 local MainTab = Window:CreateTab("Principal", 4483362458)
 local RebirthTab = Window:CreateTab("Auto Rebirth", 4483362459)
-local StatusTab = Window:CreateTab("Auto Status", 4483362460) -- NOVA ABA
+local StatusTab = Window:CreateTab("Auto Status", 4483362460)
 
 -- ========== ABA PRINCIPAL ==========
 local StatusLabel = MainTab:CreateLabel("Status: Desativado")
@@ -115,6 +116,7 @@ RebirthTab:CreateToggle({
         SaveConfig()
         print("[🔄] Auto Rebirth: " .. tostring(v))
         if v then
+            lastRebirthTime = tick()
             Rayfield:Notify({
                 Title = "🔄 Auto Rebirth Ativado",
                 Content = "Executando a cada " .. Config.RebirthInterval .. " segundos",
@@ -132,13 +134,14 @@ RebirthTab:CreateToggle({
 
 RebirthTab:CreateSlider({
     Name = "Intervalo entre Rebirths (segundos)",
-    Range = {30, 3600},  -- 30 segundos até 1 hora
+    Range = {30, 3600},
     Increment = 30,
     Suffix = "s",
     CurrentValue = Config.RebirthInterval,
     Callback = function(v)
         Config.RebirthInterval = v
         SaveConfig()
+        print("[🔄] Intervalo de rebirth alterado para: " .. v .. " segundos")
     end
 })
 
@@ -146,12 +149,13 @@ RebirthTab:CreateButton({
     Name = "🔄 Executar Rebirth AGORA",
     Callback = function()
         ExecuteRebirth()
+        lastRebirthTime = tick()
     end
 })
 
 local NextRebirthLabel = RebirthTab:CreateLabel("⏱️ Próximo rebirth: --")
 
--- ========== NOVA ABA: AUTO STATUS ==========
+-- ========== ABA AUTO STATUS (ATUALIZADA) ==========
 StatusTab:CreateToggle({
     Name = "Ativar Auto Upgrade de Status",
     CurrentValue = Config.AutoStatus,
@@ -160,9 +164,10 @@ StatusTab:CreateToggle({
         SaveConfig()
         print("[📊] Auto Status: " .. tostring(v))
         if v then
+            lastStatusTime = tick()
             Rayfield:Notify({
                 Title = "📊 Auto Status Ativado",
-                Content = "Upgrade automático de PlayerExp ativado!",
+                Content = "Upgrade a cada " .. Config.StatusInterval .. " segundos",
                 Duration = 3
             })
         else
@@ -176,34 +181,48 @@ StatusTab:CreateToggle({
 })
 
 StatusTab:CreateSlider({
+    Name = "Intervalo entre Upgrades (segundos)",
+    Range = {5, 300},
+    Increment = 5,
+    Suffix = "s",
+    CurrentValue = Config.StatusInterval,
+    Callback = function(v)
+        Config.StatusInterval = v
+        SaveConfig()
+        print("[📊] Intervalo de upgrade alterado para: " .. v .. " segundos")
+        Rayfield:Notify({
+            Title = "⏱️ Intervalo Alterado",
+            Content = "Upgrade a cada " .. v .. " segundos",
+            Duration = 2
+        })
+    end
+})
+
+StatusTab:CreateSlider({
     Name = "Quantidade de Pontos por Upgrade",
-    Range = {1, 1000},
-    Increment = 10,
+    Range = {1, 3000},  -- ALTERADO: máximo agora é 3000
+    Increment = 50,     -- Aumentei o incremento para facilitar
     Suffix = "pts",
     CurrentValue = Config.StatusPoints,
     Callback = function(v)
         Config.StatusPoints = v
         SaveConfig()
         print("[📊] Pontos por upgrade alterado para: " .. v)
+        StatusPointsLabel:Set("📊 Pontos por upgrade: " .. v)
     end
 })
 
 StatusTab:CreateButton({
-    Name = "📊 Testar Upgrade AGORA (250 pontos)",
-    Callback = function()
-        ExecuteStatusUpgrade()
-    end
-})
-
-StatusTab:CreateButton({
-    Name = "📊 Upgrade com valor personalizado",
+    Name = "📊 Executar Upgrade AGORA",
     Callback = function()
         ExecuteStatusUpgrade(Config.StatusPoints)
+        lastStatusTime = tick()
     end
 })
 
--- Label para mostrar status
-local StatusUpgradeStatus = StatusTab:CreateLabel("📊 Status: Desativado")
+-- Labels para mostrar timers
+local NextStatusLabel = StatusTab:CreateLabel("⏱️ Próximo upgrade: --")
+local StatusPointsLabel = StatusTab:CreateLabel("📊 Pontos por upgrade: " .. Config.StatusPoints)
 local LastUpgradeLabel = StatusTab:CreateLabel("⏱️ Último upgrade: --")
 
 -- ============================================
@@ -349,6 +368,12 @@ end
 function ExecuteStatusUpgrade(points)
     local upgradePoints = points or Config.StatusPoints
     
+    -- Limitar pontos ao máximo de 3000 (segurança extra)
+    if upgradePoints > 3000 then
+        upgradePoints = 3000
+        print("[⚠️] Pontos limitados a 3000 (máximo permitido)")
+    end
+    
     print("[📊] Executando Upgrade de Status com " .. upgradePoints .. " pontos...")
     
     pcall(function()
@@ -372,7 +397,6 @@ function ExecuteStatusUpgrade(points)
                 -- Atualizar label com horário do último upgrade
                 local currentTime = os.date("%H:%M:%S")
                 LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
-                StatusUpgradeStatus:Set("📊 Status: Ativo - Último: " .. upgradePoints .. " pts")
                 
                 Rayfield:Notify({
                     Title = "📊 Status Upgrade!",
@@ -393,20 +417,21 @@ end
 -- ============================================
 
 local loopActive = false
-local lastRebirthTime = 0
-local lastStatusTime = 0
-local statusInterval = 10  -- Executa upgrade a cada 10 segundos (pode ajustar)
+local lastRebirthTime = tick()
+local lastStatusTime = tick()
 
 task.spawn(function()
-    print("[🎮] Script carregado!")
-    print("[⚔️] Dificuldades disponíveis: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
+    print("[🎮] Script v24 carregado!")
+    print("[⚔️] Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
     print("[🔄] Auto Rebirth configurável!")
-    print("[📊] Auto Status configurável!")
+    print("[📊] Auto Status com timer configurável!")
+    print("[💰] Limite de pontos: 3000 por upgrade!")
     
     while true do
+        local currentTime = tick()
+        
         -- ===== SISTEMA DE AUTO REBIRTH =====
         if Config.AutoRebirth then
-            local currentTime = tick()
             local timeSinceLastRebirth = currentTime - lastRebirthTime
             
             if timeSinceLastRebirth >= Config.RebirthInterval then
@@ -415,11 +440,10 @@ task.spawn(function()
                 lastRebirthTime = currentTime
             end
             
-            -- Atualizar label com próximo rebirth
             local nextRebirth = Config.RebirthInterval - timeSinceLastRebirth
             if nextRebirth > 0 then
                 local minutos = math.floor(nextRebirth / 60)
-                local segundos = nextRebirth % 60
+                local segundos = math.floor(nextRebirth % 60)
                 NextRebirthLabel:Set(string.format("⏱️ Próximo rebirth: %02d:%02d", minutos, segundos))
                 RebirthStatusLabel:Set(string.format("🔄 Rebirth: %02d:%02d", minutos, segundos))
             else
@@ -433,28 +457,33 @@ task.spawn(function()
         
         -- ===== SISTEMA DE AUTO STATUS =====
         if Config.AutoStatus then
-            local currentTime = tick()
             local timeSinceLastStatus = currentTime - lastStatusTime
             
-            -- Executa upgrade a cada 10 segundos
-            if timeSinceLastStatus >= statusInterval then
-                print("[📊] Executando upgrade automático de status...")
+            if timeSinceLastStatus >= Config.StatusInterval then
+                print("[📊] Tempo esgotado! Executando upgrade de status...")
                 ExecuteStatusUpgrade(Config.StatusPoints)
                 lastStatusTime = currentTime
             end
             
-            -- Atualizar label na aba principal
-            local nextStatus = statusInterval - timeSinceLastStatus
+            local nextStatus = Config.StatusInterval - timeSinceLastStatus
             if nextStatus > 0 then
-                StatusUpLabel:Set(string.format("📊 Auto Status: Próximo em %ds", math.floor(nextStatus)))
-                StatusUpgradeStatus:Set(string.format("📊 Próximo upgrade: %ds", math.floor(nextStatus)))
+                local minutos = math.floor(nextStatus / 60)
+                local segundos = math.floor(nextStatus % 60)
+                
+                if minutos > 0 then
+                    NextStatusLabel:Set(string.format("⏱️ Próximo upgrade: %02d:%02d", minutos, segundos))
+                    StatusUpLabel:Set(string.format("📊 Auto Status: %02d:%02d", minutos, segundos))
+                else
+                    NextStatusLabel:Set(string.format("⏱️ Próximo upgrade: %02d segundos", segundos))
+                    StatusUpLabel:Set(string.format("📊 Auto Status: %02ds", segundos))
+                end
             else
-                StatusUpLabel:Set("📊 Auto Status: Executando...")
-                StatusUpgradeStatus:Set("📊 Executando upgrade...")
+                NextStatusLabel:Set("⏱️ Próximo upgrade: AGORA!")
+                StatusUpLabel:Set("📊 Auto Status: AGORA!")
             end
         else
+            NextStatusLabel:Set("⏱️ Próximo upgrade: Desativado")
             StatusUpLabel:Set("📊 Auto Status: Desativado")
-            StatusUpgradeStatus:Set("📊 Status: Desativado")
         end
         
         -- ===== SISTEMA DE DUNGEON =====
@@ -525,15 +554,16 @@ end)
 
 -- Notificação inicial
 Rayfield:Notify({
-    Title = "✅ Script Carregado!",
-    Content = "Auto Dungeon + Auto Rebirth + Auto Status",
+    Title = "✅ Script v24 Carregado!",
+    Content = "Limite de pontos: 3000 por upgrade!",
     Duration = 5
 })
 
-print("[✅] Script v22 carregado!")
+print("[✅] Script v24 carregado!")
 print("[⚔️] Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
 print("[🔄] Auto Rebirth configurável!")
-print("[📊] Auto Status configurável!")
-print("   - Upgrade automático a cada 10 segundos")
+print("[📊] Auto Status com timer configurável!")
+print("[💰] Limite de pontos: 3000 por upgrade!")
+print("   - Intervalo padrão: " .. Config.StatusInterval .. " segundos")
 print("   - Pontos por upgrade: " .. Config.StatusPoints)
-print("[✅] Fluxo: Teleporta → Espera → CREATE+START → Repete")
+print("[✅] Todos os sistemas rodam em loop com timers independentes!")
