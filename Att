@@ -1,0 +1,539 @@
+-- Auto Dungeon Hub v22 - Com Auto Rebirth + Auto Status + Novas Dificuldades
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- ============================================
+-- CONFIGURAÇÕES
+-- ============================================
+local ConfigFileName = "DungeonHub_Config.json"
+local HttpService = game:GetService("HttpService")
+
+local Config = {
+    AutoStart = false,
+    Difficulty = "Easy",
+    WaitTime = 120,  -- Tempo de espera DEPOIS do teleporte
+    AutoRebirth = false,
+    RebirthInterval = 300,  -- Tempo entre rebirths (segundos)
+    AutoStatus = false,  -- NOVO: Auto Upgrade de Status
+    StatusPoints = 250   -- NOVO: Quantos pontos gastar por vez
+}
+
+local function SaveConfig()
+    if writefile then
+        pcall(function() writefile(ConfigFileName, HttpService:JSONEncode(Config)) end)
+    end
+end
+
+local function LoadConfig()
+    if isfile and isfile(ConfigFileName) then
+        pcall(function()
+            local data = HttpService:JSONDecode(readfile(ConfigFileName))
+            for k,v in pairs(data) do Config[k] = v end
+        end)
+    end
+end
+LoadConfig()
+
+-- ============================================
+-- INTERFACE
+-- ============================================
+local Window = Rayfield:CreateWindow({
+    Name = "Auto Dungeon Hub",
+    LoadingTitle = "Carregando...",
+    ConfigurationSaving = {Enabled = false}
+})
+
+local MainTab = Window:CreateTab("Principal", 4483362458)
+local RebirthTab = Window:CreateTab("Auto Rebirth", 4483362459)
+local StatusTab = Window:CreateTab("Auto Status", 4483362460) -- NOVA ABA
+
+-- ========== ABA PRINCIPAL ==========
+local StatusLabel = MainTab:CreateLabel("Status: Desativado")
+local TimerLabel = MainTab:CreateLabel("Timer: --")
+local RebirthStatusLabel = MainTab:CreateLabel("🔄 Rebirth: Desativado")
+local StatusUpLabel = MainTab:CreateLabel("📊 Auto Status: Desativado")
+
+MainTab:CreateToggle({
+    Name = "Ativar Auto Dungeon",
+    CurrentValue = Config.AutoStart,
+    Callback = function(v)
+        Config.AutoStart = v
+        SaveConfig()
+        print("[DEBUG] AutoStart: " .. tostring(v))
+    end
+})
+
+MainTab:CreateDropdown({
+    Name = "Dificuldade",
+    Options = {"Easy", "Normal", "Hard", "Insane", "Ultra", "Chaotic", "Nightmare"},
+    CurrentOption = {Config.Difficulty},
+    Callback = function(v)
+        Config.Difficulty = v[1]
+        SaveConfig()
+        print("[⚔️] Dificuldade alterada para: " .. Config.Difficulty)
+        Rayfield:Notify({
+            Title = "⚔️ Dificuldade",
+            Content = Config.Difficulty,
+            Duration = 2
+        })
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "Tempo de espera (segundos)",
+    Range = {30, 300},
+    Increment = 10,
+    Suffix = "s",
+    CurrentValue = Config.WaitTime,
+    Callback = function(v)
+        Config.WaitTime = v
+        SaveConfig()
+    end
+})
+
+MainTab:CreateButton({
+    Name = "🚀 Testar CREATE + START agora",
+    Callback = function()
+        TeleportToBoss()
+        task.wait(1)
+        SendCreate()
+        task.wait(1)
+        SendStart()
+        Rayfield:Notify({
+            Title = "Teste Executado",
+            Content = Config.Difficulty,
+            Duration = 2
+        })
+    end
+})
+
+-- ========== ABA AUTO REBIRTH ==========
+RebirthTab:CreateToggle({
+    Name = "Ativar Auto Rebirth",
+    CurrentValue = Config.AutoRebirth,
+    Callback = function(v)
+        Config.AutoRebirth = v
+        SaveConfig()
+        print("[🔄] Auto Rebirth: " .. tostring(v))
+        if v then
+            Rayfield:Notify({
+                Title = "🔄 Auto Rebirth Ativado",
+                Content = "Executando a cada " .. Config.RebirthInterval .. " segundos",
+                Duration = 3
+            })
+        else
+            Rayfield:Notify({
+                Title = "🔄 Auto Rebirth Desativado",
+                Content = "Parando execução automática",
+                Duration = 2
+            })
+        end
+    end
+})
+
+RebirthTab:CreateSlider({
+    Name = "Intervalo entre Rebirths (segundos)",
+    Range = {30, 3600},  -- 30 segundos até 1 hora
+    Increment = 30,
+    Suffix = "s",
+    CurrentValue = Config.RebirthInterval,
+    Callback = function(v)
+        Config.RebirthInterval = v
+        SaveConfig()
+    end
+})
+
+RebirthTab:CreateButton({
+    Name = "🔄 Executar Rebirth AGORA",
+    Callback = function()
+        ExecuteRebirth()
+    end
+})
+
+local NextRebirthLabel = RebirthTab:CreateLabel("⏱️ Próximo rebirth: --")
+
+-- ========== NOVA ABA: AUTO STATUS ==========
+StatusTab:CreateToggle({
+    Name = "Ativar Auto Upgrade de Status",
+    CurrentValue = Config.AutoStatus,
+    Callback = function(v)
+        Config.AutoStatus = v
+        SaveConfig()
+        print("[📊] Auto Status: " .. tostring(v))
+        if v then
+            Rayfield:Notify({
+                Title = "📊 Auto Status Ativado",
+                Content = "Upgrade automático de PlayerExp ativado!",
+                Duration = 3
+            })
+        else
+            Rayfield:Notify({
+                Title = "📊 Auto Status Desativado",
+                Content = "Upgrade automático parado",
+                Duration = 2
+            })
+        end
+    end
+})
+
+StatusTab:CreateSlider({
+    Name = "Quantidade de Pontos por Upgrade",
+    Range = {1, 1000},
+    Increment = 10,
+    Suffix = "pts",
+    CurrentValue = Config.StatusPoints,
+    Callback = function(v)
+        Config.StatusPoints = v
+        SaveConfig()
+        print("[📊] Pontos por upgrade alterado para: " .. v)
+    end
+})
+
+StatusTab:CreateButton({
+    Name = "📊 Testar Upgrade AGORA (250 pontos)",
+    Callback = function()
+        ExecuteStatusUpgrade()
+    end
+})
+
+StatusTab:CreateButton({
+    Name = "📊 Upgrade com valor personalizado",
+    Callback = function()
+        ExecuteStatusUpgrade(Config.StatusPoints)
+    end
+})
+
+-- Label para mostrar status
+local StatusUpgradeStatus = StatusTab:CreateLabel("📊 Status: Desativado")
+local LastUpgradeLabel = StatusTab:CreateLabel("⏱️ Último upgrade: --")
+
+-- ============================================
+-- FUNÇÕES DO DUNGEON
+-- ============================================
+
+function TeleportToBoss()
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    if not char then
+        player.CharacterAdded:Wait()
+        char = player.Character
+        task.wait(1)
+    end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local bossPosition = CFrame.new(215.72, 1594.49, -4294.38)
+        hrp.CFrame = bossPosition
+        print("[📍] Teleportado para o Boss IMEDIATAMENTE!")
+        return true
+    end
+    return false
+end
+
+function SendCreate()
+    pcall(function()
+        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+        if bridge then
+            local remote = bridge:FindFirstChild("dataRemoteEvent")
+            if remote then
+                local args = {
+                    [1] = {
+                        [1] = {
+                            ["Event"] = "BossRushAction",
+                            ["Action"] = "Create"
+                        },
+                        [2] = "\17"
+                    }
+                }
+                remote:FireServer(unpack(args))
+                print("[✓] CREATE enviado!")
+            end
+        end
+    end)
+end
+
+function SendStart()
+    pcall(function()
+        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+        if bridge then
+            local remote = bridge:FindFirstChild("dataRemoteEvent")
+            if remote then
+                local args = {
+                    [1] = {
+                        [1] = {
+                            ["Dungeon"] = 2394154405,
+                            ["Action"] = "Start",
+                            ["Diff"] = Config.Difficulty,
+                            ["Event"] = "BossRushAction"
+                        },
+                        [2] = "\17"
+                    }
+                }
+                remote:FireServer(unpack(args))
+                print("[✓] START enviado! Dificuldade: " .. Config.Difficulty)
+            end
+        end
+    end)
+end
+
+function ExecuteCreateAndStart()
+    print("[▶] ===== EXECUTANDO CREATE + START =====")
+    StatusLabel:Set("Status: Enviando CREATE...")
+    SendCreate()
+    task.wait(1)
+    
+    StatusLabel:Set("Status: Enviando START (" .. Config.Difficulty .. ")...")
+    SendStart()
+    
+    local color = ""
+    if Config.Difficulty == "Ultra" then
+        color = "💜"
+    elseif Config.Difficulty == "Chaotic" then
+        color = "🌪️"
+    elseif Config.Difficulty == "Nightmare" then
+        color = "🌙"
+    else
+        color = "⚔️"
+    end
+    
+    Rayfield:Notify({
+        Title = color .. " Dungeon Iniciada!",
+        Content = Config.Difficulty,
+        Duration = 2
+    })
+    
+    print("[▶] ===== DUNGEON " .. string.upper(Config.Difficulty) .. " INICIADA ===== ")
+    StatusLabel:Set("Status: Dungeon em andamento...")
+end
+
+-- ============================================
+-- FUNÇÃO DE REBIRTH
+-- ============================================
+
+function ExecuteRebirth()
+    print("[🔄] Executando Rebirth...")
+    
+    pcall(function()
+        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+        if bridge then
+            local remote = bridge:FindFirstChild("dataRemoteEvent")
+            if remote then
+                local args = {
+                    [1] = {
+                        [1] = {
+                            ["Event"] = "RebirthPlayer"
+                        },
+                        [2] = "\17"
+                    }
+                }
+                remote:FireServer(unpack(args))
+                print("[✓] Rebirth executado com sucesso!")
+                
+                Rayfield:Notify({
+                    Title = "🔄 Rebirth Executado!",
+                    Content = "Você foi renascido!",
+                    Duration = 3
+                })
+            else
+                print("[❌] Remote 'dataRemoteEvent' não encontrado!")
+            end
+        else
+            print("[❌] BridgeNet2 não encontrado!")
+        end
+    end)
+end
+
+-- ============================================
+-- FUNÇÃO DE UPGRADE DE STATUS
+-- ============================================
+
+function ExecuteStatusUpgrade(points)
+    local upgradePoints = points or Config.StatusPoints
+    
+    print("[📊] Executando Upgrade de Status com " .. upgradePoints .. " pontos...")
+    
+    pcall(function()
+        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+        if bridge then
+            local remote = bridge:FindFirstChild("dataRemoteEvent")
+            if remote then
+                local args = {
+                    [1] = {
+                        [1] = {
+                            ["Stats"] = "PlayerExp",
+                            ["Event"] = "StatsUp",
+                            ["Points"] = upgradePoints
+                        },
+                        [2] = "\17"
+                    }
+                }
+                remote:FireServer(unpack(args))
+                print("[✓] Upgrade de Status executado com sucesso! Pontos gastos: " .. upgradePoints)
+                
+                -- Atualizar label com horário do último upgrade
+                local currentTime = os.date("%H:%M:%S")
+                LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
+                StatusUpgradeStatus:Set("📊 Status: Ativo - Último: " .. upgradePoints .. " pts")
+                
+                Rayfield:Notify({
+                    Title = "📊 Status Upgrade!",
+                    Content = "Gastou " .. upgradePoints .. " pontos em PlayerExp",
+                    Duration = 2
+                })
+            else
+                print("[❌] Remote 'dataRemoteEvent' não encontrado!")
+            end
+        else
+            print("[❌] BridgeNet2 não encontrado!")
+        end
+    end)
+end
+
+-- ============================================
+-- LOOP PRINCIPAL
+-- ============================================
+
+local loopActive = false
+local lastRebirthTime = 0
+local lastStatusTime = 0
+local statusInterval = 10  -- Executa upgrade a cada 10 segundos (pode ajustar)
+
+task.spawn(function()
+    print("[🎮] Script carregado!")
+    print("[⚔️] Dificuldades disponíveis: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
+    print("[🔄] Auto Rebirth configurável!")
+    print("[📊] Auto Status configurável!")
+    
+    while true do
+        -- ===== SISTEMA DE AUTO REBIRTH =====
+        if Config.AutoRebirth then
+            local currentTime = tick()
+            local timeSinceLastRebirth = currentTime - lastRebirthTime
+            
+            if timeSinceLastRebirth >= Config.RebirthInterval then
+                print("[🔄] Tempo esgotado! Executando rebirth...")
+                ExecuteRebirth()
+                lastRebirthTime = currentTime
+            end
+            
+            -- Atualizar label com próximo rebirth
+            local nextRebirth = Config.RebirthInterval - timeSinceLastRebirth
+            if nextRebirth > 0 then
+                local minutos = math.floor(nextRebirth / 60)
+                local segundos = nextRebirth % 60
+                NextRebirthLabel:Set(string.format("⏱️ Próximo rebirth: %02d:%02d", minutos, segundos))
+                RebirthStatusLabel:Set(string.format("🔄 Rebirth: %02d:%02d", minutos, segundos))
+            else
+                NextRebirthLabel:Set("⏱️ Próximo rebirth: AGORA!")
+                RebirthStatusLabel:Set("🔄 Rebirth: AGORA!")
+            end
+        else
+            NextRebirthLabel:Set("⏱️ Próximo rebirth: Desativado")
+            RebirthStatusLabel:Set("🔄 Rebirth: Desativado")
+        end
+        
+        -- ===== SISTEMA DE AUTO STATUS =====
+        if Config.AutoStatus then
+            local currentTime = tick()
+            local timeSinceLastStatus = currentTime - lastStatusTime
+            
+            -- Executa upgrade a cada 10 segundos
+            if timeSinceLastStatus >= statusInterval then
+                print("[📊] Executando upgrade automático de status...")
+                ExecuteStatusUpgrade(Config.StatusPoints)
+                lastStatusTime = currentTime
+            end
+            
+            -- Atualizar label na aba principal
+            local nextStatus = statusInterval - timeSinceLastStatus
+            if nextStatus > 0 then
+                StatusUpLabel:Set(string.format("📊 Auto Status: Próximo em %ds", math.floor(nextStatus)))
+                StatusUpgradeStatus:Set(string.format("📊 Próximo upgrade: %ds", math.floor(nextStatus)))
+            else
+                StatusUpLabel:Set("📊 Auto Status: Executando...")
+                StatusUpgradeStatus:Set("📊 Executando upgrade...")
+            end
+        else
+            StatusUpLabel:Set("📊 Auto Status: Desativado")
+            StatusUpgradeStatus:Set("📊 Status: Desativado")
+        end
+        
+        -- ===== SISTEMA DE DUNGEON =====
+        if Config.AutoStart then
+            if not loopActive then
+                loopActive = true
+                print("[🔁] Loop ativado! Dificuldade: " .. Config.Difficulty)
+                
+                while Config.AutoStart do
+                    print("[📍] Teleportando para o Boss AGORA MESMO...")
+                    StatusLabel:Set("Status: Teleportando para o Boss...")
+                    TeleportToBoss()
+                    
+                    Rayfield:Notify({
+                        Title = "📍 Teleportado!",
+                        Content = "Aguardando " .. Config.WaitTime .. " segundos para " .. Config.Difficulty,
+                        Duration = 3
+                    })
+                    
+                    print("[⏳] Aguardando " .. Config.WaitTime .. " segundos para enviar CREATE + START (" .. Config.Difficulty .. ")...")
+                    StatusLabel:Set("Status: Aguardando " .. Config.WaitTime .. "s para iniciar " .. Config.Difficulty)
+                    
+                    local startTime = tick()
+                    local elapsed = 0
+                    
+                    while elapsed < Config.WaitTime and Config.AutoStart do
+                        local remaining = Config.WaitTime - elapsed
+                        local minutos = math.floor(remaining / 60)
+                        local segundos = remaining % 60
+                        TimerLabel:Set(string.format("Timer: %02d:%02d", minutos, segundos))
+                        
+                        if math.floor(remaining) % 30 == 0 and remaining > 0 then
+                            print("[⏳] Enviando comandos em " .. math.floor(remaining) .. " segundos (" .. Config.Difficulty .. ")")
+                            StatusLabel:Set(string.format("Status: Enviando %s em %ds", Config.Difficulty, math.floor(remaining)))
+                        end
+                        
+                        task.wait(1)
+                        elapsed = tick() - startTime
+                    end
+                    
+                    if Config.AutoStart then
+                        print("[▶] Tempo esgotado! Enviando CREATE + START (" .. Config.Difficulty .. ")...")
+                        ExecuteCreateAndStart()
+                        
+                        print("[⏳] Aguardando 5 segundos antes de teleportar novamente...")
+                        StatusLabel:Set("Status: Aguardando 5s para recomeçar")
+                        
+                        for i = 5, 1, -1 do
+                            if not Config.AutoStart then break end
+                            StatusLabel:Set(string.format("Status: Recomeçando em %ds", i))
+                            task.wait(1)
+                        end
+                    end
+                end
+            end
+        else
+            if loopActive then
+                loopActive = false
+                TimerLabel:Set("Timer: --")
+                StatusLabel:Set("Status: Desativado")
+                print("[⏸] Loop desativado!")
+            end
+        end
+        
+        task.wait(0.1)
+    end
+end)
+
+-- Notificação inicial
+Rayfield:Notify({
+    Title = "✅ Script Carregado!",
+    Content = "Auto Dungeon + Auto Rebirth + Auto Status",
+    Duration = 5
+})
+
+print("[✅] Script v22 carregado!")
+print("[⚔️] Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
+print("[🔄] Auto Rebirth configurável!")
+print("[📊] Auto Status configurável!")
+print("   - Upgrade automático a cada 10 segundos")
+print("   - Pontos por upgrade: " .. Config.StatusPoints)
+print("[✅] Fluxo: Teleporta → Espera → CREATE+START → Repete")
