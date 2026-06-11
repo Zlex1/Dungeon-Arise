@@ -1,4 +1,4 @@
--- Auto Dungeon Hub v24 - Limite de Pontos Aumentado para 3000
+-- Auto Dungeon Hub v26 - Correção Auto Rebirth + Auto Status
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- ============================================
@@ -10,12 +10,12 @@ local HttpService = game:GetService("HttpService")
 local Config = {
     AutoStart = false,
     Difficulty = "Easy",
-    WaitTime = 120,  -- Tempo de espera DEPOIS do teleporte
+    WaitTime = 120,
     AutoRebirth = false,
-    RebirthInterval = 300,  -- Tempo entre rebirths (segundos)
+    RebirthInterval = 300,
     AutoStatus = false,
-    StatusInterval = 10,  -- Tempo entre upgrades (segundos)
-    StatusPoints = 250   -- Quantos pontos gastar por vez
+    StatusInterval = 10,
+    StatusPoints = 250
 }
 
 local function SaveConfig()
@@ -46,6 +46,7 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("Principal", 4483362458)
 local RebirthTab = Window:CreateTab("Auto Rebirth", 4483362459)
 local StatusTab = Window:CreateTab("Auto Status", 4483362460)
+local DebugTab = Window:CreateTab("Debug", 4483362461)
 
 -- ========== ABA PRINCIPAL ==========
 local StatusLabel = MainTab:CreateLabel("Status: Desativado")
@@ -59,7 +60,6 @@ MainTab:CreateToggle({
     Callback = function(v)
         Config.AutoStart = v
         SaveConfig()
-        print("[DEBUG] AutoStart: " .. tostring(v))
     end
 })
 
@@ -70,7 +70,6 @@ MainTab:CreateDropdown({
     Callback = function(v)
         Config.Difficulty = v[1]
         SaveConfig()
-        print("[⚔️] Dificuldade alterada para: " .. Config.Difficulty)
         Rayfield:Notify({
             Title = "⚔️ Dificuldade",
             Content = Config.Difficulty,
@@ -107,14 +106,13 @@ MainTab:CreateButton({
     end
 })
 
--- ========== ABA AUTO REBIRTH ==========
+-- ========== ABA AUTO REBIRTH (CORRIGIDA) ==========
 RebirthTab:CreateToggle({
     Name = "Ativar Auto Rebirth",
     CurrentValue = Config.AutoRebirth,
     Callback = function(v)
         Config.AutoRebirth = v
         SaveConfig()
-        print("[🔄] Auto Rebirth: " .. tostring(v))
         if v then
             lastRebirthTime = tick()
             Rayfield:Notify({
@@ -141,28 +139,41 @@ RebirthTab:CreateSlider({
     Callback = function(v)
         Config.RebirthInterval = v
         SaveConfig()
-        print("[🔄] Intervalo de rebirth alterado para: " .. v .. " segundos")
+    end
+})
+
+-- Botões de teste com diferentes formatos
+RebirthTab:CreateButton({
+    Name = "🔄 Testar Rebirth - Formato 1 (Original)",
+    Callback = function()
+        ExecuteRebirthFormat1()
     end
 })
 
 RebirthTab:CreateButton({
-    Name = "🔄 Executar Rebirth AGORA",
+    Name = "🔄 Testar Rebirth - Formato 2 (Alternativo)",
     Callback = function()
-        ExecuteRebirth()
-        lastRebirthTime = tick()
+        ExecuteRebirthFormat2()
+    end
+})
+
+RebirthTab:CreateButton({
+    Name = "🔄 Testar Rebirth - Formato 3 (Simples)",
+    Callback = function()
+        ExecuteRebirthFormat3()
     end
 })
 
 local NextRebirthLabel = RebirthTab:CreateLabel("⏱️ Próximo rebirth: --")
+local RebirthDebugLabel = RebirthTab:CreateLabel("🔍 Debug: Aguardando...")
 
--- ========== ABA AUTO STATUS (ATUALIZADA) ==========
+-- ========== ABA AUTO STATUS ==========
 StatusTab:CreateToggle({
     Name = "Ativar Auto Upgrade de Status",
     CurrentValue = Config.AutoStatus,
     Callback = function(v)
         Config.AutoStatus = v
         SaveConfig()
-        print("[📊] Auto Status: " .. tostring(v))
         if v then
             lastStatusTime = tick()
             Rayfield:Notify({
@@ -189,44 +200,490 @@ StatusTab:CreateSlider({
     Callback = function(v)
         Config.StatusInterval = v
         SaveConfig()
-        print("[📊] Intervalo de upgrade alterado para: " .. v .. " segundos")
-        Rayfield:Notify({
-            Title = "⏱️ Intervalo Alterado",
-            Content = "Upgrade a cada " .. v .. " segundos",
-            Duration = 2
-        })
     end
 })
 
 StatusTab:CreateSlider({
     Name = "Quantidade de Pontos por Upgrade",
-    Range = {1, 3000},  -- ALTERADO: máximo agora é 3000
-    Increment = 50,     -- Aumentei o incremento para facilitar
+    Range = {1, 3000},
+    Increment = 50,
     Suffix = "pts",
     CurrentValue = Config.StatusPoints,
     Callback = function(v)
         Config.StatusPoints = v
         SaveConfig()
-        print("[📊] Pontos por upgrade alterado para: " .. v)
         StatusPointsLabel:Set("📊 Pontos por upgrade: " .. v)
     end
 })
 
+-- Botões de teste com diferentes formatos
 StatusTab:CreateButton({
-    Name = "📊 Executar Upgrade AGORA",
+    Name = "📊 Testar Status - Formato 1 (Original)",
     Callback = function()
-        ExecuteStatusUpgrade(Config.StatusPoints)
-        lastStatusTime = tick()
+        ExecuteStatusFormat1(Config.StatusPoints)
     end
 })
 
--- Labels para mostrar timers
+StatusTab:CreateButton({
+    Name = "📊 Testar Status - Formato 2 (Alternativo)",
+    Callback = function()
+        ExecuteStatusFormat2(Config.StatusPoints)
+    end
+})
+
+StatusTab:CreateButton({
+    Name = "📊 Testar Status - Formato 3 (Simples)",
+    Callback = function()
+        ExecuteStatusFormat3(Config.StatusPoints)
+    end
+})
+
 local NextStatusLabel = StatusTab:CreateLabel("⏱️ Próximo upgrade: --")
 local StatusPointsLabel = StatusTab:CreateLabel("📊 Pontos por upgrade: " .. Config.StatusPoints)
 local LastUpgradeLabel = StatusTab:CreateLabel("⏱️ Último upgrade: --")
+local StatusDebugLabel = StatusTab:CreateLabel("🔍 Debug: Aguardando...")
+
+-- ========== ABA DEBUG ==========
+local RemoteStatusLabel = DebugTab:CreateLabel("🔍 Procurando remotes...")
+local BridgeInfoLabel = DebugTab:CreateLabel("🌉 BridgeNet2: --")
+
+DebugTab:CreateButton({
+    Name = "🔍 Buscar Remotes",
+    Callback = function()
+        FindAllRemotes()
+    end
+})
+
+DebugTab:CreateButton({
+    Name = "📋 Listar BridgeNet2",
+    Callback = function()
+        ListBridgeNet2()
+    end
+})
+
+DebugTab:CreateButton({
+    Name = "🔍 Testar Conexão",
+    Callback = function()
+        TestConnection()
+    end
+})
 
 -- ============================================
--- FUNÇÕES DO DUNGEON
+-- FUNÇÕES DE DEBUG
+-- ============================================
+
+function FindAllRemotes()
+    print("[🔍] Procurando remotes...")
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local bridge = replicatedStorage:FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        BridgeInfoLabel:Set("🌉 BridgeNet2: ENCONTRADO ✅")
+        RemoteStatusLabel:Set("✅ BridgeNet2 encontrado!")
+        print("[✅] BridgeNet2 encontrado!")
+        
+        local children = bridge:GetChildren()
+        print("[📋] Total de filhos: " .. #children)
+        
+        for _, child in ipairs(children) do
+            print("   - " .. child.Name .. " (" .. child.ClassName .. ")")
+            if child.ClassName == "RemoteEvent" then
+                RemoteStatusLabel:Set("🔍 RemoteEvent encontrado: " .. child.Name)
+                print("[🎯] RemoteEvent disponível: " .. child.Name)
+            end
+        end
+        
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            RemoteStatusLabel:Set("✅ dataRemoteEvent encontrado! Pronto para uso.")
+            print("[✅] dataRemoteEvent encontrado!")
+        else
+            RemoteStatusLabel:Set("⚠️ dataRemoteEvent não encontrado! Verificando alternativas...")
+            print("[⚠️] dataRemoteEvent não encontrado!")
+            
+            -- Procurar alternativas
+            for _, child in ipairs(children) do
+                if child.ClassName == "RemoteEvent" then
+                    RemoteStatusLabel:Set("🔍 Remote alternativo: " .. child.Name)
+                    print("[🔍] Remote alternativo disponível: " .. child.Name)
+                    break
+                end
+            end
+        end
+    else
+        BridgeInfoLabel:Set("🌉 BridgeNet2: NÃO ENCONTRADO ❌")
+        RemoteStatusLabel:Set("❌ BridgeNet2 não encontrado!")
+        print("[❌] BridgeNet2 não encontrado!")
+        
+        -- Procurar em outros lugares
+        print("[🔍] Procurando em ReplicatedStorage...")
+        for _, child in ipairs(replicatedStorage:GetChildren()) do
+            if child.Name:lower():find("bridge") or child.Name:lower():find("remote") then
+                print("   - Possível remote: " .. child.Name .. " (" .. child.ClassName .. ")")
+                RemoteStatusLabel:Set("🔍 Possível remote: " .. child.Name)
+            end
+        end
+    end
+end
+
+function ListBridgeNet2()
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    if bridge then
+        print("[📋] ===== BridgeNet2 Content =====")
+        for i, child in ipairs(bridge:GetChildren()) do
+            print(i .. ". " .. child.Name .. " (" .. child.ClassName .. ")")
+        end
+        print("[📋] =============================")
+        Rayfield:Notify({
+            Title = "Debug",
+            Content = "Listagem no console (F9)",
+            Duration = 3
+        })
+    else
+        print("[❌] BridgeNet2 não encontrado!")
+        Rayfield:Notify({
+            Title = "Erro",
+            Content = "BridgeNet2 não encontrado!",
+            Duration = 3
+        })
+    end
+end
+
+function TestConnection()
+    print("[🔍] Testando conexão com remotes...")
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        print("[✅] BridgeNet2 está acessível")
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            print("[✅] dataRemoteEvent está acessível")
+            Rayfield:Notify({
+                Title = "✅ Conexão OK",
+                Content = "Remotes encontrados e acessíveis!",
+                Duration = 3
+            })
+        else
+            print("[⚠️] dataRemoteEvent não encontrado")
+            Rayfield:Notify({
+                Title = "⚠️ Alerta",
+                Content = "BridgeNet2 existe mas dataRemoteEvent não!",
+                Duration = 3
+            })
+        end
+    else
+        print("[❌] BridgeNet2 não encontrado")
+        Rayfield:Notify({
+            Title = "❌ Erro",
+            Content = "BridgeNet2 não encontrado!",
+            Duration = 3
+        })
+    end
+end
+
+-- ============================================
+-- FUNÇÕES DE REBIRTH (3 FORMATOS)
+-- ============================================
+
+-- Formato Original
+function ExecuteRebirthFormat1()
+    print("[🔄] Executando Rebirth - Formato 1")
+    RebirthDebugLabel:Set("🔍 Tentando formato 1...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            local args = {
+                [1] = {
+                    [1] = {
+                        ["Event"] = "RebirthPlayer"
+                    },
+                    [2] = "\17"
+                }
+            }
+            
+            pcall(function()
+                remote:FireServer(unpack(args))
+                success = true
+                print("[✅] Rebirth Formato 1 executado!")
+                RebirthDebugLabel:Set("✅ Rebirth Formato 1 funcionou!")
+                Rayfield:Notify({
+                    Title = "🔄 Rebirth",
+                    Content = "Executado com Formato 1!",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 1 falhou!")
+        RebirthDebugLabel:Set("❌ Formato 1 falhou!")
+    end
+    
+    return success
+end
+
+-- Formato Alternativo (sem o \17)
+function ExecuteRebirthFormat2()
+    print("[🔄] Executando Rebirth - Formato 2")
+    RebirthDebugLabel:Set("🔍 Tentando formato 2...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            local args = {
+                [1] = {
+                    ["Event"] = "RebirthPlayer"
+                }
+            }
+            
+            pcall(function()
+                remote:FireServer(unpack(args))
+                success = true
+                print("[✅] Rebirth Formato 2 executado!")
+                RebirthDebugLabel:Set("✅ Rebirth Formato 2 funcionou!")
+                Rayfield:Notify({
+                    Title = "🔄 Rebirth",
+                    Content = "Executado com Formato 2!",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 2 falhou!")
+        RebirthDebugLabel:Set("❌ Formato 2 falhou!")
+    end
+    
+    return success
+end
+
+-- Formato Simples
+function ExecuteRebirthFormat3()
+    print("[🔄] Executando Rebirth - Formato 3")
+    RebirthDebugLabel:Set("🔍 Tentando formato 3...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            pcall(function()
+                remote:FireServer("RebirthPlayer")
+                success = true
+                print("[✅] Rebirth Formato 3 executado!")
+                RebirthDebugLabel:Set("✅ Rebirth Formato 3 funcionou!")
+                Rayfield:Notify({
+                    Title = "🔄 Rebirth",
+                    Content = "Executado com Formato 3!",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 3 falhou!")
+        RebirthDebugLabel:Set("❌ Formato 3 falhou!")
+    end
+    
+    return success
+end
+
+-- Função principal que tenta todos os formatos
+function ExecuteRebirth()
+    print("[🔄] Tentando executar Rebirth...")
+    
+    if ExecuteRebirthFormat1() then return true end
+    task.wait(0.2)
+    if ExecuteRebirthFormat2() then return true end
+    task.wait(0.2)
+    if ExecuteRebirthFormat3() then return true end
+    
+    print("[❌] Todos os formatos de rebirth falharam!")
+    RebirthDebugLabel:Set("❌ TODOS OS FORMATOS FALHARAM!")
+    Rayfield:Notify({
+        Title = "❌ Erro",
+        Content = "Rebirth não funcionou. Verifique a aba Debug!",
+        Duration = 4
+    })
+    return false
+end
+
+-- ============================================
+-- FUNÇÕES DE STATUS (3 FORMATOS)
+-- ============================================
+
+-- Formato Original
+function ExecuteStatusFormat1(points)
+    local upgradePoints = points or Config.StatusPoints
+    if upgradePoints > 3000 then upgradePoints = 3000 end
+    
+    print("[📊] Executando Status - Formato 1 com " .. upgradePoints .. " pontos")
+    StatusDebugLabel:Set("🔍 Tentando formato 1...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            local args = {
+                [1] = {
+                    [1] = {
+                        ["Stats"] = "PlayerExp",
+                        ["Event"] = "StatsUp",
+                        ["Points"] = upgradePoints
+                    },
+                    [2] = "\17"
+                }
+            }
+            
+            pcall(function()
+                remote:FireServer(unpack(args))
+                success = true
+                print("[✅] Status Formato 1 executado!")
+                StatusDebugLabel:Set("✅ Formato 1 funcionou!")
+                
+                local currentTime = os.date("%H:%M:%S")
+                LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
+                
+                Rayfield:Notify({
+                    Title = "📊 Status Upgrade!",
+                    Content = "Formato 1: +" .. upgradePoints .. " pts",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 1 falhou!")
+        StatusDebugLabel:Set("❌ Formato 1 falhou!")
+    end
+    
+    return success
+end
+
+-- Formato Alternativo
+function ExecuteStatusFormat2(points)
+    local upgradePoints = points or Config.StatusPoints
+    if upgradePoints > 3000 then upgradePoints = 3000 end
+    
+    print("[📊] Executando Status - Formato 2 com " .. upgradePoints .. " pontos")
+    StatusDebugLabel:Set("🔍 Tentando formato 2...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            local args = {
+                [1] = {
+                    ["Stats"] = "PlayerExp",
+                    ["Event"] = "StatsUp",
+                    ["Points"] = upgradePoints
+                }
+            }
+            
+            pcall(function()
+                remote:FireServer(unpack(args))
+                success = true
+                print("[✅] Status Formato 2 executado!")
+                StatusDebugLabel:Set("✅ Formato 2 funcionou!")
+                
+                local currentTime = os.date("%H:%M:%S")
+                LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
+                
+                Rayfield:Notify({
+                    Title = "📊 Status Upgrade!",
+                    Content = "Formato 2: +" .. upgradePoints .. " pts",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 2 falhou!")
+        StatusDebugLabel:Set("❌ Formato 2 falhou!")
+    end
+    
+    return success
+end
+
+-- Formato Simples
+function ExecuteStatusFormat3(points)
+    local upgradePoints = points or Config.StatusPoints
+    if upgradePoints > 3000 then upgradePoints = 3000 end
+    
+    print("[📊] Executando Status - Formato 3 com " .. upgradePoints .. " pontos")
+    StatusDebugLabel:Set("🔍 Tentando formato 3...")
+    
+    local success = false
+    local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
+    
+    if bridge then
+        local remote = bridge:FindFirstChild("dataRemoteEvent")
+        if remote then
+            pcall(function()
+                remote:FireServer("StatsUp", "PlayerExp", upgradePoints)
+                success = true
+                print("[✅] Status Formato 3 executado!")
+                StatusDebugLabel:Set("✅ Formato 3 funcionou!")
+                
+                local currentTime = os.date("%H:%M:%S")
+                LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
+                
+                Rayfield:Notify({
+                    Title = "📊 Status Upgrade!",
+                    Content = "Formato 3: +" .. upgradePoints .. " pts",
+                    Duration = 2
+                })
+            end)
+        end
+    end
+    
+    if not success then
+        print("[❌] Formato 3 falhou!")
+        StatusDebugLabel:Set("❌ Formato 3 falhou!")
+    end
+    
+    return success
+end
+
+-- Função principal que tenta todos os formatos
+function ExecuteStatusUpgrade(points)
+    print("[📊] Tentando executar Upgrade de Status...")
+    
+    if ExecuteStatusFormat1(points) then return true end
+    task.wait(0.2)
+    if ExecuteStatusFormat2(points) then return true end
+    task.wait(0.2)
+    if ExecuteStatusFormat3(points) then return true end
+    
+    print("[❌] Todos os formatos de status falharam!")
+    StatusDebugLabel:Set("❌ TODOS OS FORMATOS FALHARAM!")
+    Rayfield:Notify({
+        Title = "❌ Erro",
+        Content = "Status Upgrade não funcionou. Verifique a aba Debug!",
+        Duration = 4
+    })
+    return false
+end
+
+-- ============================================
+-- FUNÇÕES DO DUNGEON (já funcionavam)
 -- ============================================
 
 function TeleportToBoss()
@@ -242,7 +699,7 @@ function TeleportToBoss()
     if hrp then
         local bossPosition = CFrame.new(215.72, 1594.49, -4294.38)
         hrp.CFrame = bossPosition
-        print("[📍] Teleportado para o Boss IMEDIATAMENTE!")
+        print("[📍] Teleportado para o Boss!")
         return true
     end
     return false
@@ -295,7 +752,7 @@ function SendStart()
 end
 
 function ExecuteCreateAndStart()
-    print("[▶] ===== EXECUTANDO CREATE + START =====")
+    print("[▶] EXECUTANDO CREATE + START")
     StatusLabel:Set("Status: Enviando CREATE...")
     SendCreate()
     task.wait(1)
@@ -303,113 +760,13 @@ function ExecuteCreateAndStart()
     StatusLabel:Set("Status: Enviando START (" .. Config.Difficulty .. ")...")
     SendStart()
     
-    local color = ""
-    if Config.Difficulty == "Ultra" then
-        color = "💜"
-    elseif Config.Difficulty == "Chaotic" then
-        color = "🌪️"
-    elseif Config.Difficulty == "Nightmare" then
-        color = "🌙"
-    else
-        color = "⚔️"
-    end
-    
     Rayfield:Notify({
-        Title = color .. " Dungeon Iniciada!",
+        Title = "⚔️ Dungeon Iniciada!",
         Content = Config.Difficulty,
         Duration = 2
     })
     
-    print("[▶] ===== DUNGEON " .. string.upper(Config.Difficulty) .. " INICIADA ===== ")
     StatusLabel:Set("Status: Dungeon em andamento...")
-end
-
--- ============================================
--- FUNÇÃO DE REBIRTH
--- ============================================
-
-function ExecuteRebirth()
-    print("[🔄] Executando Rebirth...")
-    
-    pcall(function()
-        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
-        if bridge then
-            local remote = bridge:FindFirstChild("dataRemoteEvent")
-            if remote then
-                local args = {
-                    [1] = {
-                        [1] = {
-                            ["Event"] = "RebirthPlayer"
-                        },
-                        [2] = "\17"
-                    }
-                }
-                remote:FireServer(unpack(args))
-                print("[✓] Rebirth executado com sucesso!")
-                
-                Rayfield:Notify({
-                    Title = "🔄 Rebirth Executado!",
-                    Content = "Você foi renascido!",
-                    Duration = 3
-                })
-            else
-                print("[❌] Remote 'dataRemoteEvent' não encontrado!")
-            end
-        else
-            print("[❌] BridgeNet2 não encontrado!")
-        end
-    end)
-end
-
--- ============================================
--- FUNÇÃO DE UPGRADE DE STATUS
--- ============================================
-
-function ExecuteStatusUpgrade(points)
-    local upgradePoints = points or Config.StatusPoints
-    
-    -- Limitar pontos ao máximo de 3000 (segurança extra)
-    if upgradePoints > 3000 then
-        upgradePoints = 3000
-        print("[⚠️] Pontos limitados a 3000 (máximo permitido)")
-    end
-    
-    print("[📊] Executando Upgrade de Status com " .. upgradePoints .. " pontos...")
-    
-    pcall(function()
-        local bridge = game:GetService("ReplicatedStorage"):FindFirstChild("BridgeNet2")
-        if bridge then
-            local remote = bridge:FindFirstChild("dataRemoteEvent")
-            if remote then
-                local args = {
-                    [1] = {
-                        [1] = {
-                            ["Stats"] = "PlayerExp",
-                            ["Event"] = "StatsUp",
-                            ["Points"] = upgradePoints
-                        },
-                        [2] = "\17"
-                    }
-                }
-                remote:FireServer(unpack(args))
-                print("[✓] Upgrade de Status executado com sucesso! Pontos gastos: " .. upgradePoints)
-                
-                -- Atualizar label com horário do último upgrade
-                local currentTime = os.date("%H:%M:%S")
-                LastUpgradeLabel:Set("⏱️ Último upgrade: " .. currentTime .. " (" .. upgradePoints .. " pts)")
-                
-                Rayfield:Notify({
-                    Title = "📊 Status Upgrade!",
-                    Content = "Gastou " .. upgradePoints .. " pontos em PlayerExp",
-                    Duration = 2
-                })
-            else
-                print("[❌] Remote 'dataRemoteEvent' não encontrado!")
-            end
-        else
-            print("[❌] BridgeNet2 não encontrado!")
-        end
-    end)
 end
 
 -- ============================================
@@ -420,22 +777,25 @@ local loopActive = false
 local lastRebirthTime = tick()
 local lastStatusTime = tick()
 
+-- Executar busca de remotes ao iniciar
 task.spawn(function()
-    print("[🎮] Script v24 carregado!")
-    print("[⚔️] Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
-    print("[🔄] Auto Rebirth configurável!")
-    print("[📊] Auto Status com timer configurável!")
-    print("[💰] Limite de pontos: 3000 por upgrade!")
+    task.wait(2)
+    FindAllRemotes()
+end)
+
+task.spawn(function()
+    print("[🎮] Script v26 carregado!")
+    print("[🔄] Auto Rebirth corrigido com 3 formatos!")
+    print("[📊] Auto Status corrigido com 3 formatos!")
     
     while true do
         local currentTime = tick()
         
-        -- ===== SISTEMA DE AUTO REBIRTH =====
+        -- AUTO REBIRTH
         if Config.AutoRebirth then
             local timeSinceLastRebirth = currentTime - lastRebirthTime
             
             if timeSinceLastRebirth >= Config.RebirthInterval then
-                print("[🔄] Tempo esgotado! Executando rebirth...")
                 ExecuteRebirth()
                 lastRebirthTime = currentTime
             end
@@ -455,12 +815,11 @@ task.spawn(function()
             RebirthStatusLabel:Set("🔄 Rebirth: Desativado")
         end
         
-        -- ===== SISTEMA DE AUTO STATUS =====
+        -- AUTO STATUS
         if Config.AutoStatus then
             local timeSinceLastStatus = currentTime - lastStatusTime
             
             if timeSinceLastStatus >= Config.StatusInterval then
-                print("[📊] Tempo esgotado! Executando upgrade de status...")
                 ExecuteStatusUpgrade(Config.StatusPoints)
                 lastStatusTime = currentTime
             end
@@ -486,25 +845,22 @@ task.spawn(function()
             StatusUpLabel:Set("📊 Auto Status: Desativado")
         end
         
-        -- ===== SISTEMA DE DUNGEON =====
+        -- AUTO DUNGEON
         if Config.AutoStart then
             if not loopActive then
                 loopActive = true
-                print("[🔁] Loop ativado! Dificuldade: " .. Config.Difficulty)
                 
                 while Config.AutoStart do
-                    print("[📍] Teleportando para o Boss AGORA MESMO...")
-                    StatusLabel:Set("Status: Teleportando para o Boss...")
+                    StatusLabel:Set("Status: Teleportando...")
                     TeleportToBoss()
                     
                     Rayfield:Notify({
                         Title = "📍 Teleportado!",
-                        Content = "Aguardando " .. Config.WaitTime .. " segundos para " .. Config.Difficulty,
+                        Content = "Aguardando " .. Config.WaitTime .. "s para " .. Config.Difficulty,
                         Duration = 3
                     })
                     
-                    print("[⏳] Aguardando " .. Config.WaitTime .. " segundos para enviar CREATE + START (" .. Config.Difficulty .. ")...")
-                    StatusLabel:Set("Status: Aguardando " .. Config.WaitTime .. "s para iniciar " .. Config.Difficulty)
+                    StatusLabel:Set("Status: Aguardando " .. Config.WaitTime .. "s")
                     
                     local startTime = tick()
                     local elapsed = 0
@@ -514,22 +870,12 @@ task.spawn(function()
                         local minutos = math.floor(remaining / 60)
                         local segundos = remaining % 60
                         TimerLabel:Set(string.format("Timer: %02d:%02d", minutos, segundos))
-                        
-                        if math.floor(remaining) % 30 == 0 and remaining > 0 then
-                            print("[⏳] Enviando comandos em " .. math.floor(remaining) .. " segundos (" .. Config.Difficulty .. ")")
-                            StatusLabel:Set(string.format("Status: Enviando %s em %ds", Config.Difficulty, math.floor(remaining)))
-                        end
-                        
                         task.wait(1)
                         elapsed = tick() - startTime
                     end
                     
                     if Config.AutoStart then
-                        print("[▶] Tempo esgotado! Enviando CREATE + START (" .. Config.Difficulty .. ")...")
                         ExecuteCreateAndStart()
-                        
-                        print("[⏳] Aguardando 5 segundos antes de teleportar novamente...")
-                        StatusLabel:Set("Status: Aguardando 5s para recomeçar")
                         
                         for i = 5, 1, -1 do
                             if not Config.AutoStart then break end
@@ -544,7 +890,6 @@ task.spawn(function()
                 loopActive = false
                 TimerLabel:Set("Timer: --")
                 StatusLabel:Set("Status: Desativado")
-                print("[⏸] Loop desativado!")
             end
         end
         
@@ -552,18 +897,13 @@ task.spawn(function()
     end
 end)
 
--- Notificação inicial
 Rayfield:Notify({
-    Title = "✅ Script v24 Carregado!",
-    Content = "Limite de pontos: 3000 por upgrade!",
+    Title = "✅ Script v26 Carregado!",
+    Content = "Auto Rebirth e Auto Status corrigidos!",
     Duration = 5
 })
 
-print("[✅] Script v24 carregado!")
-print("[⚔️] Dificuldades: Easy, Normal, Hard, Insane, Ultra, Chaotic, Nightmare")
-print("[🔄] Auto Rebirth configurável!")
-print("[📊] Auto Status com timer configurável!")
-print("[💰] Limite de pontos: 3000 por upgrade!")
-print("   - Intervalo padrão: " .. Config.StatusInterval .. " segundos")
-print("   - Pontos por upgrade: " .. Config.StatusPoints)
-print("[✅] Todos os sistemas rodam em loop com timers independentes!")
+print("[✅] Script v26 carregado com sucesso!")
+print("[🔄] Auto Rebirth: 3 formatos diferentes disponíveis")
+print("[📊] Auto Status: 3 formatos diferentes disponíveis")
+print("[🔍] Use a aba Debug para testar qual formato funciona no seu jogo!")
